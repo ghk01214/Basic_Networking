@@ -2,7 +2,8 @@
 #include <string>
 #include <thread>
 #include "conn.h"
-#define LAGTIME 200ms
+#define LAGTIME 50ms
+#define WAIT	200ms
 
 using namespace std;
 
@@ -40,18 +41,22 @@ void do_node(char node_id)
 				str[0] >>= 1;
 			}
 
+			this_thread::sleep_for(WAIT);
+
 			// 문자열의 길이를 전송
 			for (int i = 0; i < 8; ++i)
 			{
-				int size = str.size() - 1;
+				int size = str.size();
 				size >>= i;
 
 				g_conn.set(size & true);
 				this_thread::sleep_for(LAGTIME);
 			}
 
+			this_thread::sleep_for(WAIT);
+
 			// 문자열 전송
-			for (int i = 1; i < str.size(); ++i)
+			for (int i = 1; i < str.size() + 1; ++i)
 			{
 				for (int j = 0; j < 8; ++j)
 				{
@@ -60,6 +65,8 @@ void do_node(char node_id)
 
 					str[i] >>= 1;
 				}
+
+				this_thread::sleep_for(WAIT);
 			}
 		}
 		// ASCII 코드 값이 대소문자 b~d 사이의 값일 때
@@ -71,14 +78,18 @@ void do_node(char node_id)
 				
 				char nodeID{};
 
+				this_thread::sleep_for(20ms);
+
 				for (int i = 0; i < 8; ++i)
 				{
-					this_thread::sleep_for(LAGTIME);
-
 					nodeID |= g_conn.get() << i;
+
+					this_thread::sleep_for(LAGTIME);
 				}
 
-				if (node_id != toupper(nodeID))
+				this_thread::sleep_for(WAIT);
+
+				if (node_id != nodeID)
 				{
 					g_conn.set(false);
 					continue;
@@ -90,10 +101,12 @@ void do_node(char node_id)
 
 				for (int i = 0; i < 8; ++i)
 				{
-					this_thread::sleep_for(LAGTIME);
-
 					size |= g_conn.get() << i;
+
+					this_thread::sleep_for(LAGTIME);
 				}
+
+				this_thread::sleep_for(WAIT);
 
 				string str{};
 				str.resize(size);
@@ -102,10 +115,12 @@ void do_node(char node_id)
 				{
 					for (int i = 0; i < 8; ++i)
 					{
-						this_thread::sleep_for(LAGTIME);
-
 						str[j] |= g_conn.get() << i;
+
+						this_thread::sleep_for(LAGTIME);
 					}
+
+					this_thread::sleep_for(WAIT);
 				}
 
 				cout << "노드 A로부터 [" << str << "]를 받았습니다." << endl << endl;
