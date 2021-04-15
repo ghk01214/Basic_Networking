@@ -13,7 +13,7 @@ constexpr int NIC_STATE_DONE = 2;
 bool active{ false };
 string sendMessage{};
 string recieveMessage{};
-const chrono::microseconds CLOCK{ 10000 };
+const chrono::microseconds CLOCK{ 100000 };
 
 void send_command_to_NIC()
 {
@@ -51,10 +51,11 @@ bool send_message(chrono::high_resolution_clock::time_point& tp, int num, unsign
 		bool bit{ (c & (1 << i)) != 0 };
 		g_conn.set(bit);
 
-		while (chrono::high_resolution_clock::now() < tp + CLOCK);
-
-		if (g_conn.get() != bit)
-			collision = true;
+		while (chrono::high_resolution_clock::now() < tp + CLOCK)
+		{
+			if (g_conn.get() != bit)
+				collision = true;
+		}
 
 		tp += CLOCK;
 	}
@@ -62,7 +63,7 @@ bool send_message(chrono::high_resolution_clock::time_point& tp, int num, unsign
 	return collision;
 }
 
-char recieve_message(chrono::high_resolution_clock::time_point& tp, int num, CONN& g_conn)
+char recieve_message(chrono::high_resolution_clock::time_point& tp, int num, int cmd, CONN& g_conn)
 {
 	char c{};
 
@@ -72,16 +73,19 @@ char recieve_message(chrono::high_resolution_clock::time_point& tp, int num, CON
 
 		if (chrono::high_resolution_clock::now() > tp + CLOCK)
 		{
-			if (g_conn.get())
+			if (cmd == 1)
 			{
-				c |= 1 << i;
+				if (g_conn.get())
+				{
+					c |= 1 << i;
+				}
 			}
 
 			tp += CLOCK;
 		}
 	}
 
-	if (num != 1)
+	if (cmd == 1)
 	{
 		recieveMessage.push_back(c);
 	}
@@ -140,8 +144,8 @@ void do_node_NIC(char node_id, CONN& g_conn)
 				active = true;
 
 				// 메세지 수신
-				recieve_message(time, 8, g_conn);
-				recieve_message(time, 1, g_conn);
+				recieve_message(time, 8, 1, g_conn);
+				recieve_message(time, 1, 0, g_conn);
 
 				read = false;
 
@@ -164,6 +168,7 @@ void do_node_NIC(char node_id, CONN& g_conn)
 			{
 				cout << endl << "Node " << recieveMessage[1] << " sent [";
 				recieveMessage.erase(0, 2);
+				recieveMessage.erase(recieveMessage.end() - 1, recieveMessage.end());
 				cout << recieveMessage << "]" << endl;
 
 				recieveMessage.clear();
