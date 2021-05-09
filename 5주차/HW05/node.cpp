@@ -110,8 +110,7 @@ private:
 	map<char, char> node2macTable;
 };
 
-volatile bool endState = false;
-volatile int sendState = 0;			// 0 : Idle, 1 : Have Message, 2 : Message Sent
+volatile int requestState = 0;			// 0 : Idle, 1 : Requesting DHCP, 2 : Recieved DHCP
 const chrono::microseconds CLOCK{ 100000 };
 AddressManager addressManager;
 DHCPResponse resDHCP;
@@ -123,21 +122,27 @@ void DHCP(const char mac_addr, NIC& g_nic)
 
 	if (reqDHCP.fromMac != 'A')
 	{
-		g_nic.SendFrame(sizeof(reqDHCP), &reqDHCP);
+		int i = 0;
 
-		sendState = 1;
-
-		for (int i = 0;; ++i)
+		do
 		{
-			if ((sendState != 2) && (i % 250000000 == 0))
-			{
-				cout << "Waiting for receiving DHCP response." << endl;
-			}
-			else if (sendState == 2)
-				break;
-		}
+			g_nic.SendFrame(sizeof(reqDHCP), &reqDHCP);
+			auto startTime = chrono::high_resolution_clock::now();
+			requestState = 1;
 
-		sendState = 0;
+			while ((chrono::high_resolution_clock::now() < startTime + CLOCK * 30))
+			{
+				if (i % 5000000000 == 0)
+					cout << "Waiting for receiving DHCP response." << endl;
+
+				++i;
+			}
+
+			if (requestState != 2)
+				cout << "Failed recieving DHCP response. Requesting DHCP response again." << endl;
+		} while (requestState != 2);
+
+		requestState = 0;
 	}
 	else
 		resDHCP.nodeAddress = addressManager.AssignNodeAddress(reqDHCP.fromMac);
@@ -156,13 +161,13 @@ void do_node(NIC& g_nic)
 	SendMessage message;
 	message.fromNode = resDHCP.nodeAddress;
 
+	char tempStr[MAX_DATA_SIZE + 2];
+	char* tempLanAddress = tempStr;
+	char* tempToNode = tempStr + 1;
+	char* tempMessage = tempStr + 2;
+
 	while (true)
 	{
-		char tempStr[MAX_DATA_SIZE + 2];
-		char* tempLanAddress = tempStr;
-		char* tempToNode = tempStr + 1;
-		char* tempMessage = tempStr + 2;
-
 		cout << "\nEnter Message to Send : ";
 		cin.getline(tempStr, MAX_DATA_SIZE + 2);
 
@@ -251,7 +256,7 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 			break;
 
 		resDHCP = *p;
-		sendState = 2;
+		requestState = 2;
 
 		break;
 	}
