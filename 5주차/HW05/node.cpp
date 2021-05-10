@@ -110,7 +110,7 @@ private:
 	map<char, char> node2macTable;
 };
 
-volatile int requestState = 0;			// 0 : Idle, 1 : Requesting DHCP, 2 : Recieved DHCP
+volatile int requestState = 0;						// 0 : Idle, 1 : Requesting DHCP, 2 : Recieved DHCP
 const chrono::microseconds CLOCK{ 100000 };
 AddressManager addressManager;
 DHCPResponse resDHCP;
@@ -216,6 +216,7 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 		if (p->nodeAddress == resDHCP.nodeAddress)
 		{
 			ARPResponse rp;
+
 			rp.nodeAddress = resDHCP.nodeAddress;
 			rp.macAddress = mac_addr;
 
@@ -227,6 +228,7 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 	case responseARP:
 	{
 		ARPResponse* p = (ARPResponse*)frame;
+
 		addressManager.SetAddress(p->macAddress, p->nodeAddress);
 
 		break;
@@ -242,8 +244,9 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 			rp.nodeAddress = addressManager.AssignNodeAddress(p->fromMac);
 			rp.fromMac = mac_addr;
 			rp.toMac = p->fromMac;
-
-			g_nic.SendFrame(sizeof(rp), &rp);
+			 
+			if (rp.nodeAddress != -1)
+				g_nic.SendFrame(sizeof(rp), &rp);
 		}
 
 		break;
@@ -252,11 +255,11 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 	{
 		DHCPResponse* p = (DHCPResponse*)frame;
 
-		if (mac_addr != p->toMac)
-			break;
-
-		resDHCP = *p;
-		requestState = 2;
+		if (mac_addr == p->toMac)
+		{
+			resDHCP = *p;
+			requestState = 2;
+		}
 
 		break;
 	}
@@ -267,12 +270,12 @@ void interrupt_from_link(NIC& g_nic, int recv_size, char* frame)
 
 		_itoa_s(resDHCP.nodeAddress, nodeAddress, 10);
 
-		if (p->toNode != *nodeAddress)
-			return;
-
-		cout << "\n\nMessage from Node " << (int)p->fromNode << " : ";
-		cout << p->data << endl;
-		cout << "\nEnter Message to Send : ";
+		if (p->toNode == *nodeAddress)
+		{
+			cout << "\n\nMessage from Node " << (int)p->fromNode << " : ";
+			cout << p->data << endl;
+			cout << "\nEnter Message to Send : ";
+		}
 
 		break;
 	}
